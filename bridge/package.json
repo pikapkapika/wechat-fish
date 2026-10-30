@@ -1,0 +1,12 @@
+{
+  "name": "wechat-fish-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "只做收发：微信 SSE 入站 → dsh-fish 决策 → 原生发送与回执",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js config.json",
+    "test": "node --test"
+  }
+}
