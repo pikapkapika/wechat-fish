@@ -308,6 +308,22 @@ export function registerObserve(ctx, deps = {}) {
       send(res, 405, { error: 'method not allowed' })
     }],
 
+    // ---- 手动重启微信通道（2026-10-30）----
+    // 设置页保存后通道不会自己重新监听（端口/令牌都是启动时绑的），
+    // 以前只能重启整个 DSH。这里给一个显式入口，重读配置后原地重启。
+    ['/wechat/restart', async (req, res) => {
+      if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' })
+      const current = (await loadConfig(root)).config
+      if (current?.wechat?.adminOnly !== false && req.headers['x-dsh-fish-admin'] !== '1') {
+        return send(res, 403, { error: '只有管理员可以重启微信通道' })
+      }
+      if (typeof deps.restartWechat !== 'function') {
+        return send(res, 501, { error: '这个版本没有提供重启入口' })
+      }
+      const result = await deps.restartWechat()
+      return send(res, result?.ok ? 200 : 500, result ?? { ok: false })
+    }],
+
     // ---- 基础人格卡（一次性 seed，2026-10-27）----
     // 这不是「人格设置」：只在还没有起点时能写一次，写完只能由她自己 revise。
     ['/seed', async (req, res) => {

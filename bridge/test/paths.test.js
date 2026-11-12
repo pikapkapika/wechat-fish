@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -48,5 +48,6 @@ test('bridge: absent discovered paths never crash startup construction', () => {
     reader: {}, hook: {}, sender: {}, fish: {}, picker: {}, pacing: {}, batcher: {}, dedupe: {},
   } });
   assert.ok(bridge);
-  assert.deepEqual(logs, ['[paths] 找不到微信目录，表情池功能关闭']);
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /\[paths\] 找不到微信目录/);
 });

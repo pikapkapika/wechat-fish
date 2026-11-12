@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -74,7 +74,7 @@ test('handleBatch 拦截、计数、自动恢复，以及 /status JSON 形状', 
   await handleBatch(batch([row('普通消息'), { text: '说话', sender: 'stranger', senderName: 'stranger' }]));
   assert.equal(calls, 0);
   assert.equal(status.counters.silents, 2);
-  assert.ok(logs.includes('[muted] 跳过 2 条'));
+  assert.ok(logs.some(line => line.includes('[muted] 跳过 2 条')));
   bridge.start();
   let body;
   handler({ method: 'GET', url: '/status' }, { writeHead() {}, end(x) { body = JSON.parse(x); } });

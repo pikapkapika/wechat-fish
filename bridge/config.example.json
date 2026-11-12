@@ -1,32 +1,40 @@
 {
-  "ownWxid": "",
-  "reader": {
-    "baseUrl": "http://127.0.0.1:5031",
-    "token": "<state/wechat-io-config.json 里的 reader_token>"
-  },
-  "hook": {
-    "baseUrl": "http://127.0.0.1:30001",
-    "token": "<state/hook/native-token.txt>"
-  },
-  "fish": {
-    "baseUrl": "http://127.0.0.1:11231",
-    "token": "<与 dsh-fish config.wechat.token 相同的令牌>",
-    "timeoutMs": 30000
-  },
-  "whitelist": [],
-  "mentionAliases": [],
-  "batch": {
-    "silenceMs": 2200,
-    "groupSilenceMs": 6000,
-    "maxRows": 40
-  },
-  "pacing": {
-    "baseMs": 4000,
-    "jitter": [0.6, 1.2],
-    "maxPerMinute": 8
-  },
-  "sender": {
-    "pollMs": 400,
-    "receiptTimeoutMs": 18000
-  }
+    "reader":  {
+                   "baseUrl":  "http://127.0.0.1:5031",
+                   "token":  "\u003cstate/wechat-io-config.json 里的 reader_token\u003e"
+               },
+    "hook":  {
+                 "baseUrl":  "http://127.0.0.1:30001",
+                 "token":  "\u003cstate/hook/native-token.txt\u003e"
+             },
+    "fish":  {
+                 "baseUrl":  "http://127.0.0.1:11231",
+                 "token":  "\u003c与 dsh-fish config.wechat.token 相同的令牌\u003e",
+                 "timeoutMs":  30000
+             },
+    "whitelist":  [
+
+                  ],
+    "mentionAliases":  [
+
+                       ],
+    "batch":  {
+                  "silenceMs":  2200,
+                  "groupSilenceMs":  6000,
+                  "maxRows":  40
+              },
+    "pacing":  {
+                   "baseMs":  4000,
+                   "jitter":  [
+                                  0.6,
+                                  1.2
+                              ],
+                   "maxPerMinute":  8
+               },
+    "sender":  {
+                   "pollMs":  400,
+                   "receiptTimeoutMs":  18000
+               },
+    "logLevel":  "info",
+    "ownWxid":  ""
 }

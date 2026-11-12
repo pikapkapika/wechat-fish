@@ -1,6 +1,4 @@
 aixed/WeChat-Hook 4.1.10.27
-WeChatAgent contributors（reader / WeFlow 读取层，MIT）
-dsh-fish 上游：ssamurias/dsh-fish（MIT）
-
+WeChatAgent contributors
 再分发授权已由分发方取得（含 Hook）；分发方须保留相应授权证明。
 微信客户端及第三方运行时权利归各自权利人。保留随附许可证。

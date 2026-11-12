@@ -2289,8 +2289,13 @@ function WechatSection() {
   const load = useCallback(async () => {
     setNote('')
     try {
-      const s = await jget('/state')
-      setCfg({ enabled: false, port: 11231, token: '', provider: '', model: '', maxReplyChars: 300, adminOnly: true, groupPerHour: 4, groupGapMin: 10, ...(s?.config?.wechat ?? {}) })
+      // 注意：/state 不带 config（那是她此刻的状态）。微信这组参数在 /config 里。
+      // 以前这里读的是 s.config.wechat，永远是 undefined，页面只能拿默认值，
+      // 一保存就把 enabled 和 token 覆盖成 false / 空（2026-10-30 修）。
+      const c = await jget('/config')
+      const wechat = c?.config?.wechat ?? {}
+      setCfg({ enabled: false, port: 11231, token: '', provider: '', model: '', maxReplyChars: 300, adminOnly: true, groupPerHour: 4, groupGapMin: 10, ...wechat })
+      if (!wechat || Object.keys(wechat).length === 0) setNote('没读到微信配置，先点「重新读取」，不要直接保存。')
     } catch (e) {
       setNote(String(e?.message ?? e))
     }
@@ -2300,6 +2305,13 @@ function WechatSection() {
 
   const save = async () => {
     if (!cfg) return
+    // 防呆：启用通道但没有令牌时不要保存。
+    // 以前页面若没读到配置（用的是默认值），一保存就会把 enabled 写成 false、token 写成空，
+    // 重启后插件直接「通道未启用」，看起来像插件掉线。
+    if (cfg.enabled === true && !String(cfg.token ?? '').trim()) {
+      setNote('启用了通道但没有令牌：先把令牌填回去再保存。')
+      return
+    }
     setBusy(true); setNote('')
     try {
       await jpost('/config', {
@@ -2313,8 +2325,22 @@ function WechatSection() {
           groupPerHour: Number(cfg.groupPerHour),
           groupGapMin: Number(cfg.groupGapMin),
         },
-      })
-      setNote('已保存。重启 DSH 后通道才会重新监听。')
+      }, { 'x-dsh-fish-admin': '1' })
+      setNote('已保存。点「重启通道」或重启 DSH 后生效。')
+    } catch (e) {
+      setNote(String(e?.message ?? e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // 手动重启微信通道：重读配置、重新监听端口，不用重启整个 DSH
+  const restartChannel = async () => {
+    setBusy(true); setNote('')
+    try {
+      const r = await jpost('/wechat/restart', {}, { 'x-dsh-fish-admin': '1' })
+      setNote(r?.ok ? '通道已重启：端口与令牌已重新加载。' : ('重启失败：' + String(r?.error ?? 'unknown')))
+      if (r?.ok) await load()
     } catch (e) {
       setNote(String(e?.message ?? e))
     } finally {
@@ -2393,6 +2419,7 @@ function WechatSection() {
     text('groupGapMin', 'number', '群里两条回复之间至少隔几分钟（0 = 不限）'),
     h('div', { style: { marginTop: 16, display: 'flex', gap: 8, alignItems: 'center' } },
       h('button', { onClick: save, disabled: busy }, busy ? '保存中…' : '保存'),
+      h('button', { onClick: restartChannel, disabled: busy }, busy ? '重启中…' : '重启通道'),
       h('button', { onClick: load, disabled: busy }, '重新读取'),
       note ? h('span', { style: { fontSize: 12, opacity: 0.75 } }, note) : null,
     ),

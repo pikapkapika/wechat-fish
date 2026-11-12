@@ -29,6 +29,7 @@ import { createFish } from './fish.js';
 import { createStickerPicker } from './stickers.js';
 import { conversationId } from './conversation.js';
 import { createAdmin } from './admin.js';
+import { createLeveledLog, normalizeLevel } from './log.js';
 
 /** 微信会话 key → {kind,target} */
 export function splitKey(key) {
@@ -132,6 +133,10 @@ export function buildStatus(startedAt = Date.now()) {
 
 export function createBridge({ config, log = console.log, components = {} } = {}) {
   const paths = resolvePaths(config, components.pathsOptions);
+  // 日志分级：出口处按内容分类（error/warn/info/debug），低于阈值直接丢。
+  // 阈值来自 config.logLevel，其次环境变量，最后 info。调用点不用改。
+  const logLevel = normalizeLevel(config?.logLevel ?? process.env.WECHAT_FISH_LOG_LEVEL, 'info');
+  log = createLeveledLog(log, logLevel);
   if (!paths.outgoingDir) log('[paths] 找不到微信目录，表情池功能关闭');
   config = { ...config,
     memes: { ...config.memes, packsDir: paths.packsDir, pythonPath: paths.pythonPath, enabled: Boolean(paths.outgoingDir) && config.memes?.enabled },

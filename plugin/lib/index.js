@@ -201,8 +201,110 @@ export function apply(ctx, baseConfig = {}) {
       }
     }
 
-    // 观测台路由
-    const obs = registerObserve(ctx, { root, version: VERSION })
+    // 微信通道（默认关闭）：让她也能在微信群里说话。
+    // 启动失败只记日志，不影响她的原生房间——通道是加法，不是地基。
+    //
+    // 2026-10-30：通道改成「可以原地重启」。设置页保存后调 /wechat/restart，
+    // 不用再重启整个 DSH 才能改端口/令牌/频率。每次启动都重新读盘。
+    let wechatChannel = null
+    // 配置指纹：设置页一保存，指纹就变，下面的监视线程会自己重启通道
+    let wechatSig = ''
+    let wechatRestarting = false
+    const wechatSignature = (cfg) => {
+      const w = cfg?.wechat ?? {}
+      return JSON.stringify([
+        w.enabled === true,
+        w.port,
+        w.token,
+        w.provider,
+        w.model,
+        w.maxReplyChars,
+        w.groupPerHour,
+        w.groupGapMin,
+      ])
+    }
+    async function bootWechat() {
+      const { startWechatChannel, resolveWechatConfig } = await import('./wechat/channel.js')
+      const fresh = (await loadConfig(root)).config ?? config
+      wechatSig = wechatSignature(fresh)
+      wechatChannel = await startWechatChannel({
+        ctx,
+        root,
+        // 兼容宿主 apply 配置与旧版 ~/.dsh-fish/config.json。
+        config: resolveWechatConfig(fresh, baseConfig),
+        log: (...a) => logger.info(...a),
+      })
+      return wechatChannel
+    }
+    async function restartWechat() {
+      try {
+        await wechatChannel?.dispose?.()
+      } catch {
+        /* 旧通道可能已经自己退出 */
+      }
+      wechatChannel = null
+      try {
+        const channel = await bootWechat()
+        return { ok: true, status: typeof channel?.status === 'function' ? channel.status() : {} }
+      } catch (err) {
+        return { ok: false, error: String(err?.message ?? err) }
+      }
+    }
+    disposers.push(() => {
+      try {
+        wechatChannel?.dispose?.()
+      } catch {
+        /* ignore */
+      }
+    })
+
+    // 实时监听：设置页保存后 1.5 秒内按新参数重启通道。
+    // 端口/令牌是启动时绑的，只改文件不重启是不生效的——所以这里替用户按下那个按钮。
+    //
+    // 两个坑（2026-10-30 实测）：宿主可能把 apply 调不止一次（会有两个监视线程同时
+    // 发现配置变化，抢同一个端口 → EADDRINUSE），所以线程用 Symbol 存到 globalThis
+    // 里做单例，重启动作再用一条 promise 链串起来，保证同一时刻只有一次重启。
+    const WATCH_KEY = Symbol.for('dsh-fish.wechat.watch')
+    const LOCK_KEY = Symbol.for('dsh-fish.wechat.lock')
+    try {
+      if (globalThis[WATCH_KEY]) clearInterval(globalThis[WATCH_KEY])
+    } catch {
+      /* ignore */
+    }
+    const restartSerial = () => {
+      const prev = globalThis[LOCK_KEY] ?? Promise.resolve()
+      const next = prev.then(() => restartWechat())
+      globalThis[LOCK_KEY] = next.catch(() => {})
+      return next
+    }
+    const wechatWatch = setInterval(async () => {
+      if (wechatRestarting) return
+      try {
+        const fresh = (await loadConfig(root)).config ?? {}
+        if (wechatSignature(fresh) === wechatSig) return
+        wechatRestarting = true
+        logger.info('[wechat] 配置变了，按新参数重启通道')
+        const r = await restartSerial()
+        logger.info(r?.ok ? '[wechat] 通道已重启' : '[wechat] 通道重启失败：' + String(r?.error ?? ''))
+      } catch {
+        /* 读盘失败就下一轮再看 */
+      } finally {
+        wechatRestarting = false
+      }
+    }, 1500)
+    if (typeof wechatWatch.unref === 'function') wechatWatch.unref()
+    globalThis[WATCH_KEY] = wechatWatch
+    disposers.push(() => {
+      clearInterval(wechatWatch)
+      try {
+        if (globalThis[WATCH_KEY] === wechatWatch) delete globalThis[WATCH_KEY]
+      } catch {
+        /* ignore */
+      }
+    })
+
+    // 观测台路由（把「重启微信通道」的能力一起交过去）
+    const obs = registerObserve(ctx, { root, version: VERSION, restartWechat })
     if (obs?.dispose) disposers.push(() => obs.dispose())
 
     // 生物钟：把屋子信息一起传下去。她每晚醒来说话要落进**同一个**会话，
@@ -215,18 +317,8 @@ export function apply(ctx, baseConfig = {}) {
       log: (...a) => logger.info(...a),
     })
 
-    // 微信通道（默认关闭）：让她也能在微信群里说话。
-    // 启动失败只记日志，不影响她的原生房间——通道是加法，不是地基。
     try {
-      const { startWechatChannel, resolveWechatConfig } = await import('./wechat/channel.js')
-      const channel = await startWechatChannel({
-        ctx,
-        root,
-        // 兼容宿主 apply 配置与旧版 ~/.dsh-fish/config.json。
-        config: resolveWechatConfig(config, baseConfig),
-        log: (...a) => logger.info(...a),
-      })
-      if (typeof channel?.dispose === 'function') disposers.push(() => channel.dispose())
+      await bootWechat()
     } catch (err) {
       logger.warn('[dsh-fish] 微信通道没起来', err?.message ?? err)
     }
